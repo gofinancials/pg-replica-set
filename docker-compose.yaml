@@ -1,0 +1,55 @@
+x-postgres-common: &postgres-common
+  image: postgres:15.2-alpine
+  user: postgres
+  restart: always
+  healthcheck:
+    test: "pg_isready -U gotech --dbname=gotech"
+    interval: 10s
+    timeout: 5s
+    retries: 5
+
+services:
+  postgres_primary:
+    <<: *postgres-common
+    ports:
+      - "6432:5432"
+    environment:
+      POSTGRES_DB: gotech
+      POSTGRES_USER: gotech
+      POSTGRES_PASSWORD: gotech
+      POSTGRES_HOST_AUTH_METHOD: "md5"
+    command: |
+      postgres 
+      -c wal_level=replica 
+      -c hot_standby=on 
+      -c max_wal_senders=10 
+      -c max_replication_slots=10 
+      -c hot_standby_feedback=on
+      -c hba_file=/etc/postgresql/pg_hba.conf
+    volumes:
+      - ./00_init.sql:/docker-entrypoint-initdb.d/00_init.sql
+      - ./01_pg_hba_config.sh:/docker-entrypoint-initdb.d/01_pg_hba_config.sh
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf
+      - pg_master_data:/var/lib/postgresql/data
+
+  postgres_replica:
+    <<: *postgres-common
+    ports:
+      - "6433:5432"
+    environment:
+      POSTGRES_DB: gotech
+      POSTGRES_USER: gotech
+      POSTGRES_PASSWORD: gotech
+      PGUSER: replicator
+      PGPASSWORD: replicator_password
+      POSTGRES_HOST_AUTH_METHOD: "md5"
+    depends_on:
+      postgres_primary:
+        condition: service_healthy
+    command: ["/bin/bash", "/docker-entrypoint-initdb.d/setup-replica.sh"]
+    volumes:
+      - ./setup-replica.sh:/docker-entrypoint-initdb.d/setup-replica.sh
+      - ./01_pg_hba_config.sh:/docker-entrypoint-initdb.d/01_pg_hba_config.sh
+
+volumes:
+  pg_master_data:
