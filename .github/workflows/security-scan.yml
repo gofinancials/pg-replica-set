@@ -314,10 +314,15 @@ jobs:
               return subprocess.run(["git", "cat-file", "-e", f"{sha}^{{commit}}"], capture_output=True).returncode == 0
 
 
+          def new_branch_range(event, after):
+              own = event.get("ref", "").replace("refs/heads/", "origin/", 1)
+              return [after, "--not", f"--exclude={own}", "--remotes=origin"]
+
+
           def push_range(event):
               before, after = event.get("before", ZERO_SHA), event.get("after", "HEAD")
               if before == ZERO_SHA or not sha_exists(before):
-                  return ["-n", "50", after]
+                  return new_branch_range(event, after)
               return [f"{before}..{after}"]
 
 
