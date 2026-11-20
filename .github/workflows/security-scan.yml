@@ -59,6 +59,8 @@ jobs:
               ("blockchain dead-drop host used by PolinRider second stage", re.compile(r"api\.trongrid\.io|fullnode\.mainnet\.aptoslabs\.com|bsc-dataseed\d*\.binance\.org")),
               ("run of invisible Unicode characters", re.compile("[​-‍⁠︀-️\U000e0100-\U000e01ef]{10,}")),
               ("workflow serialises every secret", re.compile(r"toJSON\(\s*secrets\s*\)")),
+              ("PolinRider campaign id variable", re.compile(r"\bvar\s+[\w$]+\s*=\s*'-\d{4}-\d+'")),
+              ("ignored config" + ".bat dropper", re.compile(r"^\s*/?config\.bat\s*$")),
           ]
           HIDDEN_CODE = re.compile(r"[ \t]{150,}\S")
           HEX_ESCAPE = re.compile(r"\\x[0-9a-fA-F]{2}")
@@ -126,9 +128,16 @@ jobs:
               return [("warning", n, f"Very long line ({size} chars) - confirm it is generated or vendored code")]
 
 
+          def is_hidden_code(kind, line):
+              match = HIDDEN_CODE.search(line)
+              if not match:
+                  return False
+              return kind["code"] or bool(JS_TOKENS.search(line, match.end() - 1))
+
+
           def line_findings(kind, n, line):
               found = [("error", n, f"Known malware indicator: {label}") for label, rx in MARKERS if rx.search(line)]
-              if HIDDEN_CODE.search(line):
+              if is_hidden_code(kind, line):
                   found.append(("error", n, "Code hidden after a long run of whitespace (pushed off-screen)"))
               if kind["code"] and len(line) > LONG_LINE:
                   found += long_line_findings(kind, n, len(line))
